@@ -50,6 +50,37 @@ CHANGED contract: ValidationError[string_too_long] -> return {"metadata":{"toolo
 Exit code 0 means unchanged, 1 means behavior changed, and 2 means the capture
 was not trustworthy. This makes the command usable as a CI gate.
 
+## GitHub Actions
+
+Run Bumpcheck from PyPI and install the checkout into both comparison
+environments:
+
+```yaml
+jobs:
+  bumpcheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+          version: 0.12.5
+      - run: |
+          uvx --from bumpcheck==0.2.0 \
+            bumpcheck check contract.py \
+            --baseline pydantic==2.10.6 \
+            --candidate pydantic==2.11.1 \
+            --with . \
+            --python-version 3.12
+```
+
+[Tracewright's Pydantic compatibility job](https://github.com/smigolsmigol/tracewright/blob/1d7d22eb2f0e1e06a2b47dbf8f858da447cf6b61/.github/workflows/ci.yml#L14-L39)
+uses this pattern to replay four JSON Lines fixture inputs against two Pydantic
+versions.
+
 ## Check your application
 
 A contract is a normal Python file exposing either `run()` or `run(value)`.
