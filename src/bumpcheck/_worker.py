@@ -226,7 +226,7 @@ def _load_and_run(case_path, input_cases=None):
     return {"items": items, "kind": "batch"}
 
 
-def capture(case_path, watches, inputs_path=None):
+def capture(case_path, watches, inputs_path=None, capture_output=True):
     case_bytes = case_path.read_bytes()
     case_sha256 = hashlib.sha256(case_bytes).hexdigest()
     inputs_bytes = None if inputs_path is None else inputs_path.read_bytes()
@@ -246,7 +246,10 @@ def capture(case_path, watches, inputs_path=None):
 
     with warnings.catch_warnings(record=True) as caught_warnings:
         warnings.simplefilter("always")
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        with contextlib.ExitStack() as output_stack:
+            if capture_output:
+                output_stack.enter_context(contextlib.redirect_stdout(stdout))
+                output_stack.enter_context(contextlib.redirect_stderr(stderr))
             try:
                 input_cases = (
                     None
@@ -313,10 +316,15 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--case", required=True, type=Path)
     parser.add_argument("--inputs", type=Path)
+    parser.add_argument("--result", type=Path)
     parser.add_argument("--watch", action="append", default=[], type=_parse_watch)
     args = parser.parse_args(argv)
-    result = capture(args.case, args.watch, args.inputs)
-    sys.stdout.buffer.write(_canonical_bytes(result) + b"\n")
+    result = capture(args.case, args.watch, args.inputs, capture_output=args.result is None)
+    result_bytes = _canonical_bytes(result) + b"\n"
+    if args.result is None:
+        sys.stdout.buffer.write(result_bytes)
+    else:
+        args.result.write_bytes(result_bytes)
     return 0
 
 

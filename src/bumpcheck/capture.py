@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -51,6 +52,7 @@ def _run_worker(
     watches: list[Watch],
     timeout: float,
     expected_executable: Path | None = None,
+    result_path: Path | None = None,
 ) -> dict[str, Any]:
     try:
         completed = subprocess.run(
@@ -68,15 +70,31 @@ def _run_worker(
         detail = stderr or stdout or "no output"
         raise CaptureError(f"Worker exited {completed.returncode}: {detail}")
 
-    try:
-        stdout = completed.stdout.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise CaptureError("Worker returned non-UTF-8 output") from exc
+    if result_path is None:
+        artifact_bytes = completed.stdout
+    else:
+        try:
+            artifact_bytes = result_path.read_bytes()
+        except FileNotFoundError as exc:
+            raise CaptureError("Worker omitted result artifact") from exc
+        except OSError as exc:
+            raise CaptureError("Worker result artifact could not be read") from exc
 
     try:
-        artifact = json.loads(stdout)
+        artifact = json.loads(artifact_bytes)
+    except UnicodeDecodeError as exc:
+        raise CaptureError("Worker returned non-UTF-8 output") from exc
     except json.JSONDecodeError as exc:
         raise CaptureError("Worker returned malformed JSON") from exc
+    if not isinstance(artifact, dict):
+        raise CaptureError("Worker returned malformed artifact")
+
+    if result_path is not None:
+        try:
+            artifact["stdout"] = completed.stdout.decode("utf-8")
+            artifact["stderr"] = completed.stderr.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise CaptureError("Worker emitted non-UTF-8 output") from exc
 
     if artifact.get("schema_version") != 1:
         raise CaptureError("Worker returned an unsupported schema version")
@@ -110,6 +128,25 @@ def _run_worker(
     return artifact
 
 
+def _run_capture(
+    command: list[str],
+    *,
+    watches: list[Watch],
+    timeout: float,
+    expected_executable: Path | None = None,
+) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="bumpcheck-") as directory:
+        result_path = Path(directory) / "result.json"
+        command.extend(("--result", str(result_path)))
+        return _run_worker(
+            command,
+            watches=watches,
+            timeout=timeout,
+            expected_executable=expected_executable,
+            result_path=result_path,
+        )
+
+
 def capture(
     python: str | os.PathLike[str],
     case: str | os.PathLike[str],
@@ -129,7 +166,7 @@ def capture(
     watch_values = list(watches)
     command = _worker_command(case_path, watch_values, inputs_path)
     command[0] = str(python_path)
-    return _run_worker(
+    return _run_capture(
         command,
         watches=watch_values,
         timeout=timeout,
@@ -173,4 +210,4 @@ def capture_requirements(
         command.extend(("--with", requirement))
     command.append("--")
     command.extend(_worker_command(case_path, watch_values, inputs_path))
-    return _run_worker(command, watches=watch_values, timeout=timeout)
+    return _run_capture(command, watches=watch_values, timeout=timeout)

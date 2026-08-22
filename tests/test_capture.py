@@ -126,6 +126,19 @@ class CaptureTests(unittest.TestCase):
         with self.assertRaisesRegex(CaptureError, "exceeded"):
             capture(sys.executable, CASES / "timeout.py", timeout=0.05)
 
+    def test_captures_python_and_native_output(self):
+        artifact = capture(sys.executable, CASES / "fd_output.py")
+
+        self.assertEqual(artifact["outcome"], {"kind": "return", "value": {"ok": True}})
+        self.assertEqual(
+            artifact["stdout"].replace("\r\n", "\n"),
+            "python stdout\nnative stdout\nchild stdout\n",
+        )
+        self.assertEqual(
+            artifact["stderr"].replace("\r\n", "\n"),
+            "python stderr\nnative stderr\n",
+        )
+
     def test_preserves_utf8_worker_error_output(self):
         command = [
             sys.executable,
@@ -155,6 +168,30 @@ class CaptureTests(unittest.TestCase):
         with self.assertRaisesRegex(CaptureError, "non-UTF-8"):
             _run_worker(command, watches=[], timeout=10)
 
+    def test_rejects_missing_result_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result_path = Path(tmp_dir) / "missing.json"
+            with self.assertRaisesRegex(CaptureError, "omitted result artifact"):
+                _run_worker(
+                    [sys.executable, "-c", "pass"],
+                    watches=[],
+                    timeout=10,
+                    result_path=result_path,
+                )
+
+    def test_rejects_non_utf8_native_output(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result_path = Path(tmp_dir) / "result.json"
+            result_path.write_text(json.dumps(self._artifact()), encoding="utf-8")
+            command = [
+                sys.executable,
+                "-c",
+                "import sys; sys.stdout.buffer.write(bytes.fromhex('ff'))",
+            ]
+
+            with self.assertRaisesRegex(CaptureError, "emitted non-UTF-8"):
+                _run_worker(command, watches=[], timeout=10, result_path=result_path)
+
     def test_validates_capture_paths_and_timeout(self):
         missing = CASES / "definitely-missing.py"
         checks = [
@@ -179,6 +216,7 @@ class CaptureTests(unittest.TestCase):
         valid = self._artifact()
         invalid_artifacts = [
             (b"not-json", "malformed JSON", None, []),
+            (b"[]", "malformed artifact", None, []),
             (json.dumps({**valid, "schema_version": 2}).encode(), "unsupported schema", None, []),
             (json.dumps({**valid, "protocol_error": "bad case"}).encode(), "bad case", None, []),
             (json.dumps({**valid, "environment": None}).encode(), "omitted environment", None, []),
@@ -260,6 +298,7 @@ class CaptureTests(unittest.TestCase):
         self.assertIn("3.12", command)
         self.assertEqual(command.count("--with"), 2)
         self.assertIn("--inputs", command)
+        self.assertIn("--result", command)
         self.assertIn("pydantic:pydantic", command)
 
     def test_capture_requirements_validates_timeout_and_requirements(self):
