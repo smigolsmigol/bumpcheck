@@ -1,10 +1,12 @@
+import locale
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from pydantic_canary._worker import CaseProtocolError, _input_cases
-from pydantic_canary.capture import CaptureError, capture
+from pydantic_canary.capture import CaptureError, _run_worker, capture
 
 CASES = Path(__file__).parent / "cases"
 
@@ -111,6 +113,35 @@ class CaptureTests(unittest.TestCase):
     def test_enforces_timeout(self):
         with self.assertRaisesRegex(CaptureError, "exceeded"):
             capture(sys.executable, CASES / "timeout.py", timeout=0.05)
+
+    def test_preserves_utf8_worker_error_output(self):
+        command = [
+            sys.executable,
+            "-c",
+            "import sys; sys.stderr.buffer.write(b'failure: ' + bytes.fromhex('e28da0')); "
+            "raise SystemExit(1)",
+        ]
+
+        locale_decoder = (
+            "locale.getencoding"
+            if hasattr(locale, "getencoding")
+            else "locale.getpreferredencoding"
+        )
+        with (
+            patch(locale_decoder, return_value="cp1252"),
+            self.assertRaisesRegex(CaptureError, r"failure: \u2360"),
+        ):
+            _run_worker(command, watches=[], timeout=10)
+
+    def test_rejects_non_utf8_worker_output(self):
+        command = [
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write(bytes.fromhex('ff'))",
+        ]
+
+        with self.assertRaisesRegex(CaptureError, "non-UTF-8"):
+            _run_worker(command, watches=[], timeout=10)
 
 
 if __name__ == "__main__":
