@@ -3,7 +3,6 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -50,7 +49,7 @@ jobs:
       - run: uv run --isolated --no-project --no-config --no-cache --with . -- python -B -m unittest discover -s tests -v
 
   integration:
-    name: Pydantic regression
+    name: Issue-derived regressions
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -62,10 +61,12 @@ jobs:
           enable-cache: true
           python-version: '3.12'
           version: 0.12.5
-      - name: Detect a known cross-version change
+      - name: Build wheel
+        run: uv build --wheel
+      - name: Classify issue-derived regressions
         env:
           BUMPCHECK_INTEGRATION: '1'
-        run: uv run --isolated --no-project --no-config --no-cache --with . -- python -B -m unittest tests.test_integration -v
+        run: uv run --isolated --no-project --no-config --no-cache --with ./dist/bumpcheck-*.whl -- python -B -m unittest tests.test_integration -v
 
   coverage:
     name: Branch coverage
