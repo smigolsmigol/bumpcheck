@@ -4,6 +4,12 @@ Pydantic Canary is an independent proof of concept. It runs one application
 contract against two Python environments, reports selected runtime behavior
 changes, and records which watched installations ran.
 
+## Install
+
+```console
+pip install pydantic-canary
+```
+
 ```console
 $ pydantic-canary check examples/regressions/instructor_partial_stream.py \
     --inputs examples/inputs/instructor_stream.json \
