@@ -3,16 +3,16 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pydantic-canary"
+name = "bumpcheck"
 dynamic = ["version"]
-description = "Detect Pydantic behavior changes across Python environments"
+description = "Catch Pydantic runtime behavior changes before dependency bumps"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-authors = [{ name = "Pydantic Canary contributors" }]
+license-files = ["LICENSE"]
+authors = [{ name = "Federico Benini" }]
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -23,17 +23,18 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Repository = "https://github.com/smigolsmigol/pydantic-canary"
-Issues = "https://github.com/smigolsmigol/pydantic-canary/issues"
+Repository = "https://github.com/smigolsmigol/bumpcheck"
+Issues = "https://github.com/smigolsmigol/bumpcheck/issues"
 
 [project.scripts]
-pydantic-canary = "pydantic_canary.cli:main"
+bumpcheck = "bumpcheck.cli:main"
+pydantic-canary = "bumpcheck.cli:main"
 
 [tool.hatch.version]
-path = "src/pydantic_canary/__init__.py"
+path = "src/bumpcheck/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/pydantic_canary"]
+packages = ["src/bumpcheck"]
 
 [tool.ruff]
 line-length = 100
@@ -47,7 +48,7 @@ branch = true
 parallel = true
 patch = ["subprocess"]
 relative_files = true
-source = ["src/pydantic_canary"]
+source = ["src/bumpcheck"]
 
 [tool.coverage.report]
 fail_under = 90

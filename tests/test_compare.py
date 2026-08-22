@@ -3,8 +3,8 @@ import unittest
 from copy import deepcopy
 from pathlib import Path
 
-from pydantic_canary.capture import capture
-from pydantic_canary.compare import compare, describe_outcome, semantic_view
+from bumpcheck.capture import capture
+from bumpcheck.compare import compare, describe_outcome, semantic_view
 
 CASES = Path(__file__).parent / "cases"
 
@@ -42,6 +42,19 @@ class CompareTests(unittest.TestCase):
         candidate["outcome"]["value"]["answer"] = 43
 
         self.assertTrue(compare(baseline, candidate)["changed"])
+
+    def test_return_value_comparison_preserves_json_types(self):
+        baseline = capture(sys.executable, CASES / "return_value.py")
+        baseline["outcome"]["value"] = {"value": 1}
+        candidates = [1.0, True, [1.0], {"nested": True}]
+        baseline_values = [1, 1, [1], {"nested": 1}]
+
+        for baseline_value, candidate_value in zip(baseline_values, candidates, strict=True):
+            with self.subTest(baseline=baseline_value, candidate=candidate_value):
+                baseline["outcome"]["value"] = {"value": baseline_value}
+                candidate = deepcopy(baseline)
+                candidate["outcome"]["value"] = {"value": candidate_value}
+                self.assertTrue(compare(baseline, candidate)["changed"])
 
     def test_rejects_different_case_bytes(self):
         baseline = capture(sys.executable, CASES / "return_value.py")
@@ -83,6 +96,20 @@ class CompareTests(unittest.TestCase):
 
         self.assertFalse(compare(baseline, candidate)["changed"])
         self.assertTrue(compare(baseline, candidate, exact=True)["changed"])
+
+    def test_batch_report_preserves_json_types(self):
+        baseline = capture(
+            sys.executable,
+            CASES / "input_value.py",
+            inputs=CASES / "inputs.json",
+        )
+        candidate = deepcopy(baseline)
+        candidate["outcome"]["items"][0]["outcome"]["value"]["answer"] = 42.0
+
+        report = compare(baseline, candidate)
+
+        self.assertTrue(report["changed"])
+        self.assertEqual(len(report["batch"]["changes"]), 1)
 
     def test_rejects_different_input_bytes(self):
         baseline = capture(
@@ -134,11 +161,40 @@ class CompareTests(unittest.TestCase):
             {"kind": "exception", "pydantic_error_types": ["greater_than", "missing"]},
         )
 
+    def test_pydantic_error_locations_are_semantic(self):
+        artifact = capture(sys.executable, CASES / "return_value.py")
+        artifact["outcome"] = {
+            "kind": "exception",
+            "message": "unstable detail",
+            "pydantic_errors": [{"loc": ["email"], "type": "string_too_short"}],
+            "pydantic_error_types": ["string_too_short"],
+            "type": "pydantic_core.ValidationError",
+        }
+        candidate = deepcopy(artifact)
+        candidate["outcome"]["pydantic_errors"][0]["loc"] = ["username"]
+
+        self.assertTrue(compare(artifact, candidate)["changed"])
+        self.assertEqual(
+            semantic_view(artifact)["outcome"],
+            {
+                "kind": "exception",
+                "pydantic_errors": [{"loc": ["email"], "type": "string_too_short"}],
+            },
+        )
+
     def test_describe_outcome_covers_public_summary_shapes(self):
         long_value = "x" * 130
         outcomes = [
             ({"kind": "return", "value": long_value}, "return ", "..."),
             ({"kind": "batch", "items": [{}, {}]}, "batch[2]", "batch[2]"),
+            (
+                {
+                    "kind": "exception",
+                    "pydantic_errors": [{"loc": ["value"], "type": "missing"}],
+                },
+                "ValidationError[missing]",
+                "ValidationError[missing]",
+            ),
             (
                 {"kind": "exception", "pydantic_error_types": ["missing", "int_type"]},
                 "ValidationError[missing,int_type]",

@@ -80,7 +80,7 @@ def _environment(watches):
     return value
 
 
-def _pydantic_error_types(exc):
+def _pydantic_errors(exc):
     exception_type = type(exc)
     if exception_type.__name__ != "ValidationError" or not exception_type.__module__.startswith(
         ("pydantic", "pydantic_core")
@@ -96,19 +96,32 @@ def _pydantic_error_types(exc):
     except TypeError:
         errors = errors_method()
 
-    return sorted(
-        str(error.get("type"))
-        for error in errors
-        if isinstance(error, dict) and error.get("type") is not None
-    )
+    records = []
+    for error in errors:
+        if not isinstance(error, dict) or error.get("type") is None:
+            continue
+        location = error.get("loc", ())
+        if not isinstance(location, (list, tuple)):
+            location = (location,)
+        records.append(
+            {
+                "loc": [item if isinstance(item, (str, int)) else str(item) for item in location],
+                "type": str(error["type"]),
+            }
+        )
+    return sorted(records, key=lambda record: (record["type"], _canonical_bytes(record["loc"])))
 
 
 def _exception_record(exc):
     exception_type = type(exc)
+    pydantic_errors = _pydantic_errors(exc)
     return {
         "kind": "exception",
         "message": str(exc),
-        "pydantic_error_types": _pydantic_error_types(exc),
+        "pydantic_errors": pydantic_errors,
+        "pydantic_error_types": (
+            None if pydantic_errors is None else [error["type"] for error in pydantic_errors]
+        ),
         "type": f"{exception_type.__module__}.{exception_type.__qualname__}",
     }
 
@@ -181,7 +194,7 @@ def _input_cases(raw_bytes, *, json_lines=False):
 
 
 def _load_and_run(case_path, input_cases=None):
-    spec = importlib.util.spec_from_file_location("pydantic_canary_case", str(case_path))
+    spec = importlib.util.spec_from_file_location("bumpcheck_case", str(case_path))
     if spec is None or spec.loader is None:
         raise CaseProtocolError("could not load case module")
 

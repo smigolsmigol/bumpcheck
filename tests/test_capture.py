@@ -7,8 +7,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pydantic_canary._worker import CaseProtocolError, _input_cases
-from pydantic_canary.capture import CaptureError, _run_worker, capture, capture_requirements
+from bumpcheck._worker import CaseProtocolError, _input_cases
+from bumpcheck.capture import CaptureError, _run_worker, capture, capture_requirements
 
 CASES = Path(__file__).parent / "cases"
 
@@ -119,7 +119,7 @@ class CaptureTests(unittest.TestCase):
             capture(
                 sys.executable,
                 CASES / "return_value.py",
-                watches=(("definitely-not-installed-canary-package", "not_a_real_module"),),
+                watches=(("definitely-not-installed-bumpcheck-package", "not_a_real_module"),),
             )
 
     def test_enforces_timeout(self):
@@ -221,7 +221,7 @@ class CaptureTests(unittest.TestCase):
             completed = subprocess.CompletedProcess(["worker"], 0, stdout=stdout, stderr=b"")
             with (
                 self.subTest(message=message),
-                patch("pydantic_canary.capture.subprocess.run", return_value=completed),
+                patch("bumpcheck.capture.subprocess.run", return_value=completed),
                 self.assertRaisesRegex(CaptureError, message),
             ):
                 _run_worker(
@@ -233,7 +233,7 @@ class CaptureTests(unittest.TestCase):
 
     def test_capture_requirements_builds_isolated_command(self):
         sentinel = {"captured": True}
-        with patch("pydantic_canary.capture._run_worker", return_value=sentinel) as run_worker:
+        with patch("bumpcheck.capture._run_worker", return_value=sentinel) as run_worker:
             result = capture_requirements(
                 ("pydantic==2.10.0", "example-extra"),
                 CASES / "input_value.py",

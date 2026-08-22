@@ -6,6 +6,16 @@ import json
 from typing import Any
 
 
+def _same_json(left: Any, right: Any) -> bool:
+    options = {
+        "allow_nan": False,
+        "ensure_ascii": True,
+        "sort_keys": True,
+        "separators": (",", ":"),
+    }
+    return json.dumps(left, **options) == json.dumps(right, **options)
+
+
 def _outcome_view(outcome: dict[str, Any], *, exact: bool) -> dict[str, Any]:
     if outcome["kind"] == "return":
         projected_outcome: dict[str, Any] = {"kind": "return", "value": outcome["value"]}
@@ -21,7 +31,13 @@ def _outcome_view(outcome: dict[str, Any], *, exact: bool) -> dict[str, Any]:
             ],
             "kind": "batch",
         }
+    elif outcome.get("pydantic_errors") is not None:
+        projected_outcome = {
+            "kind": "exception",
+            "pydantic_errors": outcome["pydantic_errors"],
+        }
     elif outcome.get("pydantic_error_types") is not None:
+        # Artifacts from Pydantic Canary 0.1.x did not preserve error locations.
         projected_outcome = {
             "kind": "exception",
             "pydantic_error_types": outcome["pydantic_error_types"],
@@ -71,7 +87,7 @@ def _batch_report(
         candidate_identity = (candidate_item["index"], candidate_item["name"])
         if baseline_identity != candidate_identity:
             raise ValueError("Batch artifacts contain different input identities")
-        if baseline_item["outcome"] != candidate_item["outcome"]:
+        if not _same_json(baseline_item["outcome"], candidate_item["outcome"]):
             changes.append(
                 {
                     "baseline": baseline_item["outcome"],
@@ -102,7 +118,7 @@ def compare(
         ),
         "candidate": candidate,
         "candidate_view": candidate_view,
-        "changed": baseline_view != candidate_view,
+        "changed": not _same_json(baseline_view, candidate_view),
         "exact": exact,
         "schema_version": 1,
     }
@@ -116,7 +132,12 @@ def describe_outcome(outcome: dict[str, Any]) -> str:
         return f"return {rendered[:120]}" + ("..." if len(rendered) > 120 else "")
     if outcome["kind"] == "batch":
         return f"batch[{len(outcome['items'])}]"
-    error_types = outcome.get("pydantic_error_types")
+    errors = outcome.get("pydantic_errors")
+    error_types = (
+        [str(error["type"]) for error in errors]
+        if errors is not None
+        else outcome.get("pydantic_error_types")
+    )
     if error_types is not None:
         return f"ValidationError[{','.join(error_types)}]"
     return f"exception {outcome['type']}"

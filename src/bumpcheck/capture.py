@@ -118,7 +118,7 @@ def capture(
     watches: Iterable[Watch] = (),
     timeout: float = 10.0,
 ) -> dict[str, Any]:
-    """Capture one case without installing Canary in the target environment."""
+    """Capture one case without installing Bumpcheck in the target environment."""
 
     python_path = _executable(python, "Python")
     case_path = _file(case, "Case")
