@@ -30,7 +30,54 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
           version: 0.12.5
-      - run: uv run --isolated --no-project --no-config --with . -- python -B -m unittest discover -s tests -v
+      - run: uv run --isolated --no-project --no-config --no-cache --with . -- python -B -m unittest discover -s tests -v
+
+  windows:
+    name: Windows / Python 3.12
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: '3.12'
+          version: 0.12.5
+      - run: uv run --isolated --no-project --no-config --no-cache --with . -- python -B -m unittest discover -s tests -v
+
+  coverage:
+    name: Branch coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: '3.12'
+          version: 0.12.5
+      - name: Run branch coverage
+        run: uv run --isolated --no-project --no-config --no-cache --with-editable . --with coverage==7.15.4 -- coverage run -m unittest discover -s tests -v
+      - name: Enforce coverage floor
+        run: |
+          uvx --from coverage==7.15.4 coverage combine
+          uvx --from coverage==7.15.4 coverage report
+          uvx --from coverage==7.15.4 coverage xml -o coverage.xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: ./coverage.xml
+          flags: unit
+          use_oidc: true
 
   quality:
     runs-on: ubuntu-24.04

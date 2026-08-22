@@ -41,3 +41,15 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+patch = ["subprocess"]
+relative_files = true
+source = ["src/pydantic_canary"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_empty = true

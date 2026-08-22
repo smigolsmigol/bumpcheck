@@ -1,0 +1,14 @@
+comment: false
+
+coverage:
+  status:
+    project:
+      default:
+        if_ci_failed: error
+        target: 90%
+        threshold: 0%
+    patch:
+      default:
+        if_ci_failed: error
+        target: 100%
+        threshold: 0%
