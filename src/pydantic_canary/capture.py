@@ -57,18 +57,24 @@ def _run_worker(
             command,
             capture_output=True,
             check=False,
-            text=True,
             timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
         raise CaptureError(f"Case exceeded {timeout:g}s timeout") from exc
 
     if completed.returncode != 0:
-        detail = completed.stderr.strip() or completed.stdout.strip() or "no output"
+        stderr = completed.stderr.decode("utf-8", errors="replace").strip()
+        stdout = completed.stdout.decode("utf-8", errors="replace").strip()
+        detail = stderr or stdout or "no output"
         raise CaptureError(f"Worker exited {completed.returncode}: {detail}")
 
     try:
-        artifact = json.loads(completed.stdout)
+        stdout = completed.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CaptureError("Worker returned non-UTF-8 output") from exc
+
+    try:
+        artifact = json.loads(stdout)
     except json.JSONDecodeError as exc:
         raise CaptureError("Worker returned malformed JSON") from exc
 
