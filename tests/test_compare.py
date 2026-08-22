@@ -4,7 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from pydantic_canary.capture import capture
-from pydantic_canary.compare import compare, semantic_view
+from pydantic_canary.compare import compare, describe_outcome, semantic_view
 
 CASES = Path(__file__).parent / "cases"
 
@@ -95,6 +95,67 @@ class CompareTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "different input bytes"):
             compare(baseline, candidate)
+
+    def test_rejects_different_batch_counts(self):
+        baseline = capture(
+            sys.executable,
+            CASES / "input_value.py",
+            inputs=CASES / "inputs.json",
+        )
+        candidate = deepcopy(baseline)
+        candidate["outcome"]["items"].pop()
+
+        with self.assertRaisesRegex(ValueError, "different input counts"):
+            compare(baseline, candidate)
+
+    def test_rejects_different_batch_identities(self):
+        baseline = capture(
+            sys.executable,
+            CASES / "input_value.py",
+            inputs=CASES / "inputs.json",
+        )
+        candidate = deepcopy(baseline)
+        candidate["outcome"]["items"][0]["name"] = "different"
+
+        with self.assertRaisesRegex(ValueError, "different input identities"):
+            compare(baseline, candidate)
+
+    def test_pydantic_error_types_are_the_semantic_exception_identity(self):
+        artifact = capture(sys.executable, CASES / "return_value.py")
+        artifact["outcome"] = {
+            "kind": "exception",
+            "message": "unstable detail",
+            "pydantic_error_types": ["greater_than", "missing"],
+            "type": "pydantic_core.ValidationError",
+        }
+
+        self.assertEqual(
+            semantic_view(artifact)["outcome"],
+            {"kind": "exception", "pydantic_error_types": ["greater_than", "missing"]},
+        )
+
+    def test_describe_outcome_covers_public_summary_shapes(self):
+        long_value = "x" * 130
+        outcomes = [
+            ({"kind": "return", "value": long_value}, "return ", "..."),
+            ({"kind": "batch", "items": [{}, {}]}, "batch[2]", "batch[2]"),
+            (
+                {"kind": "exception", "pydantic_error_types": ["missing", "int_type"]},
+                "ValidationError[missing,int_type]",
+                "ValidationError[missing,int_type]",
+            ),
+            (
+                {"kind": "exception", "pydantic_error_types": None, "type": "builtins.ValueError"},
+                "exception builtins.ValueError",
+                "exception builtins.ValueError",
+            ),
+        ]
+
+        for outcome, prefix, suffix in outcomes:
+            with self.subTest(outcome=outcome):
+                rendered = describe_outcome(outcome)
+                self.assertTrue(rendered.startswith(prefix))
+                self.assertTrue(rendered.endswith(suffix))
 
 
 if __name__ == "__main__":
