@@ -1,4 +1,4 @@
-"""Command-line interface for Pydantic Canary."""
+"""Command-line interface for Bumpcheck."""
 
 from __future__ import annotations
 
@@ -27,8 +27,8 @@ def _watch(value: str) -> Watch:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="pydantic-canary",
-        description="Compare one application contract across two Python environments.",
+        prog="bumpcheck",
+        description="Catch Pydantic runtime behavior changes before a dependency bump.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     check = subparsers.add_parser("check", help="capture and compare one contract case")
@@ -64,7 +64,7 @@ def _parser() -> argparse.ArgumentParser:
         default=[],
         dest="extra_requirements",
         metavar="REQUIREMENT",
-        help="add the same requirement to both isolated targets; repeat for more",
+        help="install the same requirement or local project in both targets; repeat for more",
     )
     check.add_argument(
         "--watch",

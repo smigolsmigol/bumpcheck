@@ -80,7 +80,7 @@ def _environment(watches):
     return value
 
 
-def _pydantic_error_types(exc):
+def _pydantic_errors(exc):
     exception_type = type(exc)
     if exception_type.__name__ != "ValidationError" or not exception_type.__module__.startswith(
         ("pydantic", "pydantic_core")
@@ -96,19 +96,32 @@ def _pydantic_error_types(exc):
     except TypeError:
         errors = errors_method()
 
-    return sorted(
-        str(error.get("type"))
-        for error in errors
-        if isinstance(error, dict) and error.get("type") is not None
-    )
+    records = []
+    for error in errors:
+        if not isinstance(error, dict) or error.get("type") is None:
+            continue
+        location = error.get("loc", ())
+        if not isinstance(location, (list, tuple)):
+            location = (location,)
+        records.append(
+            {
+                "loc": [item if isinstance(item, (str, int)) else str(item) for item in location],
+                "type": str(error["type"]),
+            }
+        )
+    return sorted(records, key=lambda record: (record["type"], _canonical_bytes(record["loc"])))
 
 
 def _exception_record(exc):
     exception_type = type(exc)
+    pydantic_errors = _pydantic_errors(exc)
     return {
         "kind": "exception",
         "message": str(exc),
-        "pydantic_error_types": _pydantic_error_types(exc),
+        "pydantic_errors": pydantic_errors,
+        "pydantic_error_types": (
+            None if pydantic_errors is None else [error["type"] for error in pydantic_errors]
+        ),
         "type": f"{exception_type.__module__}.{exception_type.__qualname__}",
     }
 
@@ -181,7 +194,7 @@ def _input_cases(raw_bytes, *, json_lines=False):
 
 
 def _load_and_run(case_path, input_cases=None):
-    spec = importlib.util.spec_from_file_location("pydantic_canary_case", str(case_path))
+    spec = importlib.util.spec_from_file_location("bumpcheck_case", str(case_path))
     if spec is None or spec.loader is None:
         raise CaseProtocolError("could not load case module")
 
@@ -213,7 +226,7 @@ def _load_and_run(case_path, input_cases=None):
     return {"items": items, "kind": "batch"}
 
 
-def capture(case_path, watches, inputs_path=None):
+def capture(case_path, watches, inputs_path=None, capture_output=True):
     case_bytes = case_path.read_bytes()
     case_sha256 = hashlib.sha256(case_bytes).hexdigest()
     inputs_bytes = None if inputs_path is None else inputs_path.read_bytes()
@@ -233,7 +246,10 @@ def capture(case_path, watches, inputs_path=None):
 
     with warnings.catch_warnings(record=True) as caught_warnings:
         warnings.simplefilter("always")
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        with contextlib.ExitStack() as output_stack:
+            if capture_output:
+                output_stack.enter_context(contextlib.redirect_stdout(stdout))
+                output_stack.enter_context(contextlib.redirect_stderr(stderr))
             try:
                 input_cases = (
                     None
@@ -300,10 +316,15 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--case", required=True, type=Path)
     parser.add_argument("--inputs", type=Path)
+    parser.add_argument("--result", type=Path)
     parser.add_argument("--watch", action="append", default=[], type=_parse_watch)
     args = parser.parse_args(argv)
-    result = capture(args.case, args.watch, args.inputs)
-    sys.stdout.buffer.write(_canonical_bytes(result) + b"\n")
+    result = capture(args.case, args.watch, args.inputs, capture_output=args.result is None)
+    result_bytes = _canonical_bytes(result) + b"\n"
+    if args.result is None:
+        sys.stdout.buffer.write(result_bytes)
+    else:
+        args.result.write_bytes(result_bytes)
     return 0
 
 

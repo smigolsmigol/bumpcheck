@@ -7,8 +7,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pydantic_canary._worker import CaseProtocolError, _input_cases
-from pydantic_canary.capture import CaptureError, _run_worker, capture, capture_requirements
+from bumpcheck._worker import CaseProtocolError, _input_cases
+from bumpcheck.capture import CaptureError, _run_worker, capture, capture_requirements
 
 CASES = Path(__file__).parent / "cases"
 
@@ -119,12 +119,25 @@ class CaptureTests(unittest.TestCase):
             capture(
                 sys.executable,
                 CASES / "return_value.py",
-                watches=(("definitely-not-installed-canary-package", "not_a_real_module"),),
+                watches=(("definitely-not-installed-bumpcheck-package", "not_a_real_module"),),
             )
 
     def test_enforces_timeout(self):
         with self.assertRaisesRegex(CaptureError, "exceeded"):
             capture(sys.executable, CASES / "timeout.py", timeout=0.05)
+
+    def test_captures_python_and_native_output(self):
+        artifact = capture(sys.executable, CASES / "fd_output.py")
+
+        self.assertEqual(artifact["outcome"], {"kind": "return", "value": {"ok": True}})
+        self.assertEqual(
+            artifact["stdout"].replace("\r\n", "\n"),
+            "python stdout\nnative stdout\nchild stdout\n",
+        )
+        self.assertEqual(
+            artifact["stderr"].replace("\r\n", "\n"),
+            "python stderr\nnative stderr\n",
+        )
 
     def test_preserves_utf8_worker_error_output(self):
         command = [
@@ -155,6 +168,30 @@ class CaptureTests(unittest.TestCase):
         with self.assertRaisesRegex(CaptureError, "non-UTF-8"):
             _run_worker(command, watches=[], timeout=10)
 
+    def test_rejects_missing_result_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result_path = Path(tmp_dir) / "missing.json"
+            with self.assertRaisesRegex(CaptureError, "omitted result artifact"):
+                _run_worker(
+                    [sys.executable, "-c", "pass"],
+                    watches=[],
+                    timeout=10,
+                    result_path=result_path,
+                )
+
+    def test_rejects_non_utf8_native_output(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result_path = Path(tmp_dir) / "result.json"
+            result_path.write_text(json.dumps(self._artifact()), encoding="utf-8")
+            command = [
+                sys.executable,
+                "-c",
+                "import sys; sys.stdout.buffer.write(bytes.fromhex('ff'))",
+            ]
+
+            with self.assertRaisesRegex(CaptureError, "emitted non-UTF-8"):
+                _run_worker(command, watches=[], timeout=10, result_path=result_path)
+
     def test_validates_capture_paths_and_timeout(self):
         missing = CASES / "definitely-missing.py"
         checks = [
@@ -179,6 +216,7 @@ class CaptureTests(unittest.TestCase):
         valid = self._artifact()
         invalid_artifacts = [
             (b"not-json", "malformed JSON", None, []),
+            (b"[]", "malformed artifact", None, []),
             (json.dumps({**valid, "schema_version": 2}).encode(), "unsupported schema", None, []),
             (json.dumps({**valid, "protocol_error": "bad case"}).encode(), "bad case", None, []),
             (json.dumps({**valid, "environment": None}).encode(), "omitted environment", None, []),
@@ -221,7 +259,7 @@ class CaptureTests(unittest.TestCase):
             completed = subprocess.CompletedProcess(["worker"], 0, stdout=stdout, stderr=b"")
             with (
                 self.subTest(message=message),
-                patch("pydantic_canary.capture.subprocess.run", return_value=completed),
+                patch("bumpcheck.capture.subprocess.run", return_value=completed),
                 self.assertRaisesRegex(CaptureError, message),
             ):
                 _run_worker(
@@ -233,7 +271,7 @@ class CaptureTests(unittest.TestCase):
 
     def test_capture_requirements_builds_isolated_command(self):
         sentinel = {"captured": True}
-        with patch("pydantic_canary.capture._run_worker", return_value=sentinel) as run_worker:
+        with patch("bumpcheck.capture._run_worker", return_value=sentinel) as run_worker:
             result = capture_requirements(
                 ("pydantic==2.10.0", "example-extra"),
                 CASES / "input_value.py",
@@ -260,6 +298,7 @@ class CaptureTests(unittest.TestCase):
         self.assertIn("3.12", command)
         self.assertEqual(command.count("--with"), 2)
         self.assertIn("--inputs", command)
+        self.assertIn("--result", command)
         self.assertIn("pydantic:pydantic", command)
 
     def test_capture_requirements_validates_timeout_and_requirements(self):

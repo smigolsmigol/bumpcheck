@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import pydantic_canary._worker as worker
+import bumpcheck._worker as worker
 
 
 class _Distribution:
@@ -48,13 +48,18 @@ class WorkerTests(unittest.TestCase):
             self.assertEqual(record["module_origin"], "/package/__init__.py")
             self.assertEqual(record["direct_url"], expected)
 
-    def test_extracts_stable_pydantic_error_types(self):
+    def test_extracts_stable_pydantic_errors(self):
         def errors(_self, **kwargs):
             self.assertEqual(
                 kwargs,
                 {"include_url": False, "include_context": False, "include_input": False},
             )
-            return [{"type": "greater_than"}, "ignored", {}, {"type": "missing"}]
+            return [
+                {"loc": ("value", 0), "type": "greater_than"},
+                "ignored",
+                {},
+                {"loc": ("other",), "type": "missing"},
+            ]
 
         validation_error = type(
             "ValidationError",
@@ -63,14 +68,18 @@ class WorkerTests(unittest.TestCase):
         )()
 
         self.assertEqual(
-            worker._pydantic_error_types(validation_error), ["greater_than", "missing"]
+            worker._pydantic_errors(validation_error),
+            [
+                {"loc": ["value", 0], "type": "greater_than"},
+                {"loc": ["other"], "type": "missing"},
+            ],
         )
 
     def test_supports_legacy_pydantic_errors_signature(self):
         def errors(_self, *args, **kwargs):
             if kwargs:
                 raise TypeError("legacy signature")
-            return [{"type": "legacy"}]
+            return [{"loc": (), "type": "legacy"}]
 
         validation_error = type(
             "ValidationError",
@@ -83,8 +92,8 @@ class WorkerTests(unittest.TestCase):
             {"__module__": "pydantic.fake", "errors": None},
         )()
 
-        self.assertEqual(worker._pydantic_error_types(validation_error), ["legacy"])
-        self.assertIsNone(worker._pydantic_error_types(missing_errors_method))
+        self.assertEqual(worker._pydantic_errors(validation_error), [{"loc": [], "type": "legacy"}])
+        self.assertIsNone(worker._pydantic_errors(missing_errors_method))
 
     def test_rejects_invalid_input_documents(self):
         invalid_documents = [

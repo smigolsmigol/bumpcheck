@@ -9,8 +9,8 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
 
-from pydantic_canary.capture import CaptureError, capture
-from pydantic_canary.cli import DEFAULT_PYTHON_VERSION, DEFAULT_WATCHES, _parser, _watch, main
+from bumpcheck.capture import CaptureError, capture
+from bumpcheck.cli import DEFAULT_PYTHON_VERSION, DEFAULT_WATCHES, _parser, _watch, main
 
 CASES = Path(__file__).parent / "cases"
 
@@ -79,7 +79,7 @@ class CliTests(unittest.TestCase):
         candidate["warnings"] = [{"category": "builtins.DeprecationWarning", "message": "changed"}]
         stdout = io.StringIO()
         with (
-            patch("pydantic_canary.cli.capture", side_effect=[baseline, candidate]),
+            patch("bumpcheck.cli.capture", side_effect=[baseline, candidate]),
             contextlib.redirect_stdout(stdout),
         ):
             exit_code = main(
@@ -123,7 +123,7 @@ class CliTests(unittest.TestCase):
         artifact = capture(sys.executable, CASES / "return_value.py")
         stdout = io.StringIO()
         with (
-            patch("pydantic_canary.cli.capture", return_value=artifact) as capture_mock,
+            patch("bumpcheck.cli.capture", return_value=artifact) as capture_mock,
             contextlib.redirect_stdout(stdout),
         ):
             exit_code = main(
@@ -150,7 +150,7 @@ class CliTests(unittest.TestCase):
         stdout = io.StringIO()
         with (
             patch(
-                "pydantic_canary.cli.capture_requirements", return_value=artifact
+                "bumpcheck.cli.capture_requirements", return_value=artifact
             ) as requirement_capture,
             contextlib.redirect_stdout(stdout),
         ):
@@ -180,7 +180,7 @@ class CliTests(unittest.TestCase):
         artifact = capture(sys.executable, CASES / "return_value.py")
         stdout = io.StringIO()
         with (
-            patch("pydantic_canary.cli.capture", return_value=artifact),
+            patch("bumpcheck.cli.capture", return_value=artifact),
             contextlib.redirect_stdout(stdout),
         ):
             exit_code = main(
@@ -202,7 +202,7 @@ class CliTests(unittest.TestCase):
     def test_capture_error_is_reported(self):
         stderr = io.StringIO()
         with (
-            patch("pydantic_canary.cli.capture", side_effect=CaptureError("broken target")),
+            patch("bumpcheck.cli.capture", side_effect=CaptureError("broken target")),
             contextlib.redirect_stderr(stderr),
         ):
             exit_code = main(
@@ -226,7 +226,7 @@ class CliTests(unittest.TestCase):
         candidate["outcome"]["value"]["answer"] = 43
         stdout = io.StringIO()
         with (
-            patch("pydantic_canary.cli.capture", side_effect=[baseline, candidate]),
+            patch("bumpcheck.cli.capture", side_effect=[baseline, candidate]),
             contextlib.redirect_stdout(stdout),
         ):
             exit_code = main(
@@ -256,7 +256,7 @@ class CliTests(unittest.TestCase):
         candidate["outcome"]["items"][1]["outcome"]["value"]["answer"] = 2
         stdout = io.StringIO()
         with (
-            patch("pydantic_canary.cli.capture", side_effect=[baseline, candidate]),
+            patch("bumpcheck.cli.capture", side_effect=[baseline, candidate]),
             contextlib.redirect_stdout(stdout),
         ):
             exit_code = main(
@@ -283,13 +283,13 @@ class CliTests(unittest.TestCase):
 
     def test_module_entrypoint_displays_help(self):
         completed = subprocess.run(
-            [sys.executable, "-m", "pydantic_canary", "--help"],
+            [sys.executable, "-m", "bumpcheck", "--help"],
             capture_output=True,
             check=False,
         )
 
         self.assertEqual(completed.returncode, 0)
-        self.assertIn(b"Compare one application contract", completed.stdout)
+        self.assertIn(b"Catch Pydantic runtime behavior changes", completed.stdout)
 
 
 if __name__ == "__main__":
