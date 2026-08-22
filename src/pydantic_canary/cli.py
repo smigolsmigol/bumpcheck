@@ -72,7 +72,7 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         type=_watch,
         metavar="DIST[:MODULE]",
-        help="replace the default Pydantic watches; repeat for more distributions",
+        help="add to the default Pydantic watches; repeat for more distributions",
     )
     return parser
 
@@ -90,7 +90,7 @@ def _check(args: argparse.Namespace) -> int:
     if args.no_watch and args.watch is not None:
         print("ERROR --no-watch cannot be combined with --watch", file=sys.stderr)
         return 2
-    watches = () if args.no_watch else tuple(args.watch or DEFAULT_WATCHES)
+    watches = () if args.no_watch else (*DEFAULT_WATCHES, *(args.watch or ()))
     try:
         if args.baseline is None:
             baseline = capture(
