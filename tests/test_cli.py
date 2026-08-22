@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pydantic_canary.capture import capture
-from pydantic_canary.cli import DEFAULT_PYTHON_VERSION, _parser, main
+from pydantic_canary.cli import DEFAULT_PYTHON_VERSION, DEFAULT_WATCHES, _parser, main
 
 CASES = Path(__file__).parent / "cases"
 
@@ -115,6 +115,32 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 2)
         self.assertIn("cannot be combined", stderr.getvalue())
+
+    def test_watch_extends_default_watches(self):
+        artifact = capture(sys.executable, CASES / "return_value.py")
+        stdout = io.StringIO()
+        with (
+            patch("pydantic_canary.cli.capture", return_value=artifact) as capture_mock,
+            contextlib.redirect_stdout(stdout),
+        ):
+            exit_code = main(
+                [
+                    "check",
+                    str(CASES / "return_value.py"),
+                    "--baseline-python",
+                    sys.executable,
+                    "--candidate-python",
+                    sys.executable,
+                    "--watch",
+                    "example:example_module",
+                ]
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            capture_mock.call_args_list[0].kwargs["watches"],
+            (*DEFAULT_WATCHES, ("example", "example_module")),
+        )
 
 
 if __name__ == "__main__":
