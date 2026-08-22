@@ -1,0 +1,6 @@
+{
+  "cases": [
+    {"name": "existing-answer", "inputs": {"answer": 41}},
+    {"name": "zero", "inputs": {"answer": 0}}
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "cases": [
+    {"name": "empty-initial-chunk", "inputs": "{}"},
+    {"name": "complete-chunk", "inputs": "{\"value\":\"ok\"}"}
+  ]
+}
