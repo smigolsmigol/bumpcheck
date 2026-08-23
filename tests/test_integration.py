@@ -154,6 +154,32 @@ class RequirementIntegrationTests(unittest.TestCase):
             extra_args=("--with", "pydantic==2.13.4", "--watch", "fastapi:fastapi"),
         )
 
+    @unittest.skipUnless(os.environ.get("BUMPCHECK_INTEGRATION") == "1", "integration only")
+    def test_settings_785_detects_nested_env_regression(self):
+        issue = "https://github.com/pydantic/pydantic-settings/issues/785"
+        self.assert_check(
+            issue=issue,
+            case="settings_nested_env.py",
+            baseline="pydantic-settings==2.12.0",
+            candidate="pydantic-settings==2.13.0",
+            expected_exit=1,
+            expected_output="CHANGED settings_nested_env",
+            extra_args=("--watch", "pydantic-settings:pydantic_settings"),
+        )
+
+    @unittest.skipUnless(os.environ.get("BUMPCHECK_INTEGRATION") == "1", "integration only")
+    def test_settings_785_accepts_fixed_nested_env_release(self):
+        issue = "https://github.com/pydantic/pydantic-settings/issues/785"
+        self.assert_check(
+            issue=issue,
+            case="settings_nested_env.py",
+            baseline="pydantic-settings==2.12.0",
+            candidate="pydantic-settings==2.13.1",
+            expected_exit=0,
+            expected_output="UNCHANGED settings_nested_env",
+            extra_args=("--watch", "pydantic-settings:pydantic_settings"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
