@@ -99,25 +99,30 @@ class CliTests(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         self.assertIn("batch-level warnings or captured output changed", stdout.getvalue())
 
-    def test_rejects_watch_with_no_watch(self):
-        stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr):
-            exit_code = main(
-                [
-                    "check",
-                    str(CASES / "return_value.py"),
-                    "--baseline-python",
-                    sys.executable,
-                    "--candidate-python",
-                    sys.executable,
-                    "--watch",
-                    "example",
-                    "--no-watch",
-                ]
-            )
+    def test_rejects_incompatible_watch_modes(self):
+        combinations = (
+            ("--watch", "example", "--no-watch"),
+            ("--only-watch", "example", "--no-watch"),
+            ("--watch", "example", "--only-watch", "other"),
+        )
+        for options in combinations:
+            with self.subTest(options=options):
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr):
+                    exit_code = main(
+                        [
+                            "check",
+                            str(CASES / "return_value.py"),
+                            "--baseline-python",
+                            sys.executable,
+                            "--candidate-python",
+                            sys.executable,
+                            *options,
+                        ]
+                    )
 
-        self.assertEqual(exit_code, 2)
-        self.assertIn("cannot be combined", stderr.getvalue())
+                self.assertEqual(exit_code, 2)
+                self.assertIn("cannot be combined", stderr.getvalue())
 
     def test_watch_extends_default_watches(self):
         artifact = capture(sys.executable, CASES / "return_value.py")
@@ -144,6 +149,55 @@ class CliTests(unittest.TestCase):
             capture_mock.call_args_list[0].kwargs["watches"],
             (*DEFAULT_WATCHES, ("example", "example_module")),
         )
+
+    def test_only_watch_replaces_default_watches(self):
+        artifact = capture(sys.executable, CASES / "return_value.py")
+        stdout = io.StringIO()
+        with (
+            patch("bumpcheck.cli.capture", return_value=artifact) as capture_mock,
+            contextlib.redirect_stdout(stdout),
+        ):
+            exit_code = main(
+                [
+                    "check",
+                    str(CASES / "return_value.py"),
+                    "--baseline-python",
+                    sys.executable,
+                    "--candidate-python",
+                    sys.executable,
+                    "--only-watch",
+                    "example:example_module",
+                    "--only-watch",
+                    "other:other_module",
+                ]
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            capture_mock.call_args_list[0].kwargs["watches"],
+            (("example", "example_module"), ("other", "other_module")),
+        )
+
+    def test_omitted_watch_uses_default_watches(self):
+        artifact = capture(sys.executable, CASES / "return_value.py")
+        stdout = io.StringIO()
+        with (
+            patch("bumpcheck.cli.capture", return_value=artifact) as capture_mock,
+            contextlib.redirect_stdout(stdout),
+        ):
+            exit_code = main(
+                [
+                    "check",
+                    str(CASES / "return_value.py"),
+                    "--baseline-python",
+                    sys.executable,
+                    "--candidate-python",
+                    sys.executable,
+                ]
+            )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(capture_mock.call_args_list[0].kwargs["watches"], DEFAULT_WATCHES)
 
     def test_requirement_targets_use_isolated_capture(self):
         artifact = capture(sys.executable, CASES / "return_value.py")

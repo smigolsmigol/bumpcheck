@@ -74,6 +74,14 @@ def _parser() -> argparse.ArgumentParser:
         metavar="DIST[:MODULE]",
         help="add to the default Pydantic watches; repeat for more distributions",
     )
+    check.add_argument(
+        "--only-watch",
+        action="append",
+        default=None,
+        type=_watch,
+        metavar="DIST[:MODULE]",
+        help="replace the default Pydantic watches; repeat for more distributions",
+    )
     return parser
 
 
@@ -87,10 +95,18 @@ def _environment_line(label: str, artifact: dict[str, object]) -> str:
 
 
 def _check(args: argparse.Namespace) -> int:
-    if args.no_watch and args.watch is not None:
-        print("ERROR --no-watch cannot be combined with --watch", file=sys.stderr)
+    if args.no_watch and (args.watch is not None or args.only_watch is not None):
+        print("ERROR --no-watch cannot be combined with another watch option", file=sys.stderr)
         return 2
-    watches = () if args.no_watch else (*DEFAULT_WATCHES, *(args.watch or ()))
+    if args.watch is not None and args.only_watch is not None:
+        print("ERROR --watch cannot be combined with --only-watch", file=sys.stderr)
+        return 2
+    if args.no_watch:
+        watches = ()
+    elif args.only_watch is not None:
+        watches = tuple(args.only_watch)
+    else:
+        watches = (*DEFAULT_WATCHES, *(args.watch or ()))
     try:
         if args.baseline is None:
             baseline = capture(
