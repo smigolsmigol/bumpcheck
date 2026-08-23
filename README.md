@@ -41,8 +41,8 @@ $ uvx bumpcheck check contract.py \
     --baseline pydantic==2.10.6 \
     --candidate pydantic==2.11.1 \
     --python-version 3.12
-BASELINE pydantic=2.10.6 @ .../pydantic/__init__.py
-CANDIDATE pydantic=2.11.1 @ .../pydantic/__init__.py
+BASELINE pydantic=2.10.6, pydantic-core=2.27.2 @ .../python
+CANDIDATE pydantic=2.11.1, pydantic-core=2.33.0 @ .../python
 CHANGED contract: ValidationError[string_too_long] -> return {"metadata":{"toolong":"b"}}
 ```
 
