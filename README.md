@@ -1,21 +1,19 @@
 # Bumpcheck
 
-Catch Pydantic runtime behavior changes before a dependency bump.
+[![CI](https://github.com/smigolsmigol/bumpcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/smigolsmigol/bumpcheck/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/smigolsmigol/bumpcheck/graph/badge.svg)](https://codecov.io/gh/smigolsmigol/bumpcheck)
+[![PyPI](https://img.shields.io/pypi/v/bumpcheck.svg)](https://pypi.org/project/bumpcheck/)
+[![Python versions](https://img.shields.io/pypi/pyversions/bumpcheck.svg)](https://pypi.org/project/bumpcheck/)
+[![License](https://img.shields.io/github/license/smigolsmigol/bumpcheck.svg)](LICENSE)
 
-Bumpcheck runs one small application contract in two isolated Python
-environments and compares what users can observe: returned JSON, Pydantic
-validation errors, warnings, and captured output.
+Replay one application contract before and after a dependency bump. Bumpcheck
+exits nonzero when returned JSON, Pydantic validation errors, warnings, or
+captured output change.
 
 ## Quickstart
 
-[Install uv](https://docs.astral.sh/uv/getting-started/installation/), then install
-Bumpcheck:
-
-```console
-uv tool install bumpcheck
-```
-
-Create `contract.py`:
+[Install uv](https://docs.astral.sh/uv/getting-started/installation/), then save
+the behavior your application depends on as `contract.py`:
 
 ```python
 from collections.abc import Mapping
@@ -35,10 +33,11 @@ def run():
     return Model(metadata={"toolong": "b"}).model_dump(mode="json")
 ```
 
-Run it against two versions:
+Run it against two versions. `uvx` fetches Bumpcheck, so there is no separate
+tool installation step:
 
 ```console
-$ bumpcheck check contract.py \
+$ uvx bumpcheck check contract.py \
     --baseline pydantic==2.10.6 \
     --candidate pydantic==2.11.1 \
     --python-version 3.12
@@ -47,8 +46,10 @@ CANDIDATE pydantic=2.11.1 @ .../pydantic/__init__.py
 CHANGED contract: ValidationError[string_too_long] -> return {"metadata":{"toolong":"b"}}
 ```
 
+This reproduces [pydantic/pydantic#11681](https://github.com/pydantic/pydantic/issues/11681).
 Exit code 0 means unchanged, 1 means behavior changed, and 2 means the capture
-was not trustworthy. This makes the command usable as a CI gate.
+was not trustworthy. Install a persistent command with
+`uv tool install bumpcheck` if you prefer it over `uvx`.
 
 ## GitHub Actions
 
@@ -69,7 +70,7 @@ jobs:
           python-version: "3.12"
           version: 0.12.5
       - run: |
-          uvx --from bumpcheck==0.2.0 \
+          uvx --from bumpcheck==0.2.1 \
             bumpcheck check contract.py \
             --baseline pydantic==2.10.6 \
             --candidate pydantic==2.11.1 \
