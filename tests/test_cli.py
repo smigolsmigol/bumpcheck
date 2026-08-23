@@ -10,12 +10,36 @@ from pathlib import Path
 from unittest.mock import patch
 
 from bumpcheck.capture import CaptureError, capture
-from bumpcheck.cli import DEFAULT_PYTHON_VERSION, DEFAULT_WATCHES, _parser, _watch, main
+from bumpcheck.cli import (
+    DEFAULT_PYTHON_VERSION,
+    DEFAULT_WATCHES,
+    _environment_line,
+    _parser,
+    _watch,
+    main,
+)
 
 CASES = Path(__file__).parent / "cases"
 
 
 class CliTests(unittest.TestCase):
+    def test_environment_line_lists_every_watched_distribution(self):
+        artifact = {
+            "environment": {
+                "distributions": [
+                    {"distribution": "pydantic", "version": "2.13.4"},
+                    {"distribution": "pydantic-core", "version": "2.46.4"},
+                    {"distribution": "fastapi", "version": "0.141.1"},
+                ],
+                "executable": "/target/python",
+            }
+        }
+
+        self.assertEqual(
+            _environment_line("CANDIDATE", artifact),
+            "CANDIDATE pydantic=2.13.4, pydantic-core=2.46.4, fastapi=0.141.1 @ /target/python",
+        )
+
     def test_requirement_targets_default_to_controller_python_minor(self):
         args = _parser().parse_args(
             [

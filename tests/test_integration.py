@@ -123,6 +123,37 @@ class RequirementIntegrationTests(unittest.TestCase):
             extra_args=("--only-watch", "pydantic-monty:pydantic_monty"),
         )
 
+    @unittest.skipUnless(os.environ.get("BUMPCHECK_INTEGRATION") == "1", "integration only")
+    def test_harness_511_detects_binary_roundtrip_fix(self):
+        issue = "https://github.com/pydantic/pydantic-ai-harness/issues/511"
+        self.assert_check(
+            issue=issue,
+            case="harness_binary_roundtrip.py",
+            baseline="pydantic-ai-harness==0.16.0",
+            candidate="pydantic-ai-harness==0.17.0",
+            expected_exit=1,
+            expected_output="CHANGED harness_binary_roundtrip",
+            extra_args=(
+                "--only-watch",
+                "pydantic-ai-harness:pydantic_ai_harness",
+                "--only-watch",
+                "pydantic-ai-slim:pydantic_ai",
+            ),
+        )
+
+    @unittest.skipUnless(os.environ.get("BUMPCHECK_INTEGRATION") == "1", "integration only")
+    def test_fastapi_14341_detects_recursive_self_openapi_regression(self):
+        issue = "https://github.com/fastapi/fastapi/discussions/14341"
+        self.assert_check(
+            issue=issue,
+            case="fastapi_self_openapi.py",
+            baseline="fastapi==0.118.3",
+            candidate="fastapi==0.141.1",
+            expected_exit=1,
+            expected_output="CHANGED fastapi_self_openapi",
+            extra_args=("--with", "pydantic==2.13.4", "--watch", "fastapi:fastapi"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

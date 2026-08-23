@@ -88,10 +88,12 @@ def _parser() -> argparse.ArgumentParser:
 def _environment_line(label: str, artifact: dict[str, object]) -> str:
     environment = artifact["environment"]
     distributions = environment["distributions"]
-    package = distributions[0] if distributions else None
-    if package is None:
+    if not distributions:
         return f"{label} python={environment['python_version']} @ {environment['executable']}"
-    return f"{label} {package['distribution']}={package['version']} @ {package['module_origin']}"
+    packages = ", ".join(
+        f"{package['distribution']}={package['version']}" for package in distributions
+    )
+    return f"{label} {packages} @ {environment['executable']}"
 
 
 def _check(args: argparse.Namespace) -> int:
