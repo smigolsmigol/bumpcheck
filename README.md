@@ -96,9 +96,19 @@ bumpcheck check contract.py \
   --with .
 ```
 
-Repeat `--with` for shared dependencies. Use `--watch DIST[:MODULE]` to record
-their exact versions and import locations alongside the default `pydantic` and
-`pydantic-core` records.
+Repeat `--with` for shared dependencies. Use `--watch DIST[:MODULE]` to add to
+the default `pydantic` and `pydantic-core` provenance. Use `--only-watch`
+instead when the named distributions should replace those defaults.
+
+For example, the issue-derived integration suite detects the
+[`Path / Path` fix in Monty](https://github.com/pydantic/monty/pull/621):
+
+```console
+bumpcheck check examples/regressions/monty_path_join.py \
+  --baseline pydantic-monty==0.0.19 \
+  --candidate pydantic-monty==0.0.20 \
+  --only-watch pydantic-monty:pydantic_monty
+```
 
 For real payloads, define `run(value)` and pass `--inputs`. Bumpcheck accepts a
 JSON array, `.jsonl` or `.ndjson`, or a Pydantic Evals JSON document containing

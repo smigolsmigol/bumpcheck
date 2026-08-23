@@ -110,6 +110,19 @@ class RequirementIntegrationTests(unittest.TestCase):
             expected_output="UNCHANGED serialize_as_any",
         )
 
+    @unittest.skipUnless(os.environ.get("BUMPCHECK_INTEGRATION") == "1", "integration only")
+    def test_monty_621_detects_path_join_fix(self):
+        issue = "https://github.com/pydantic/monty/pull/621"
+        self.assert_check(
+            issue=issue,
+            case="monty_path_join.py",
+            baseline="pydantic-monty==0.0.19",
+            candidate="pydantic-monty==0.0.20",
+            expected_exit=1,
+            expected_output="CHANGED monty_path_join",
+            extra_args=("--only-watch", "pydantic-monty:pydantic_monty"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
